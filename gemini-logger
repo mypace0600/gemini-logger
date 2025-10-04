@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+
+import sys
+import os
+from datetime import datetime
+import google.generativeai as genai
+import warnings
+import shutil
+
+# ─── 경고 메시지 숨김 ───
+warnings.filterwarnings("ignore")  # 모든 Warning 숨김
+try:
+    import absl.logging
+    absl.logging.set_verbosity(absl.logging.ERROR)
+except ImportError:
+    pass  # absl 설치 안 되어도 무시
+
+# ─── 로그 저장 위치 ───
+HIDDEN_LOG_DIR = os.path.expanduser("~/.gemini-logger")
+os.makedirs(HIDDEN_LOG_DIR, exist_ok=True)
+HIDDEN_LOG_FILE = os.path.join(HIDDEN_LOG_DIR, "dialogues.txt")
+
+VISIBLE_LOG_DIR = os.path.expanduser("~/GeminiLogs")
+os.makedirs(VISIBLE_LOG_DIR, exist_ok=True)
+VISIBLE_LOG_FILE = os.path.join(VISIBLE_LOG_DIR, "dialogues.txt")
+
+# ─── API 키 가져오기 ───
+API_KEY = os.environ.get("GEMINI_API_KEY")
+if not API_KEY:
+    print("Error: Please set GEMINI_API_KEY as an environment variable")
+    sys.exit(1)
+
+# ─── Gemini API 설정 ───
+genai.configure(api_key=API_KEY)
+model = genai.GenerativeModel("gemini-2.5-flash")
+
+# ─── 대화식 모드 시작 ───
+print("=== Gemini Logger ===")
+print("Type your message and press Enter. Type 'exit' to quit.\n")
+
+try:
+    while True:
+        prompt = input("You: ").strip()
+        if prompt.lower() in ("exit", "quit"):
+            print("Exiting Gemini Logger. Bye!")
+            # 종료 시 숨김 로그를 보이는 폴더로 복사
+            shutil.copy2(HIDDEN_LOG_FILE, VISIBLE_LOG_FILE)
+            print(f"Log copied to {VISIBLE_LOG_FILE}")
+            break
+        if not prompt:
+            continue
+
+        # Gemini API 호출
+        response = model.generate_content(prompt)
+        ai_response = response.text.strip()
+
+        # 출력
+        print("\nAI: " + ai_response + "\n")
+
+        # 로그 저장 (숨김 폴더)
+        with open(HIDDEN_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().isoformat()}]\n")
+            f.write(f"You: {prompt}\n")
+            f.write(f"AI: {ai_response}\n")
+            f.write("="*50 + "\n")
+
+except KeyboardInterrupt:
+    print("\nExiting Gemini Logger. Bye!")
+    shutil.copy2(HIDDEN_LOG_FILE, VISIBLE_LOG_FILE)
+    print(f"Log copied to {VISIBLE_LOG_FILE}")
+except Exception as e:
+    print("Error:", e)
+
